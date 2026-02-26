@@ -4,9 +4,11 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'palette.dart';
 import 'story_reader.dart';
+import 'auth_screen.dart';
+import 'projects_screen.dart';
 
-// ─── Local alias for convenience ─────────────────────────────────────────────
 typedef _Palette = AppPalette;
+const _baseUrl = 'http://127.0.0.1:8000';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -69,32 +71,37 @@ class LoreWeaverApp extends StatelessWidget {
           radius: const Radius.circular(4),
         ),
       ),
-      home: const LoreWeaverHomePage(),
+      home: const AuthScreen(),
     );
   }
 }
 
-// ─── Home Page ───────────────────────────────────────────────────────────────
-class LoreWeaverHomePage extends StatefulWidget {
-  const LoreWeaverHomePage({super.key});
+// ─── Generator Screen (scoped to a project) ───────────────────────────────
+class GeneratorScreen extends StatefulWidget {
+  final ProjectData project;
+  final String token;
+  const GeneratorScreen({
+    super.key,
+    required this.project,
+    required this.token,
+  });
 
   @override
-  State<LoreWeaverHomePage> createState() => _LoreWeaverHomePageState();
+  State<GeneratorScreen> createState() => _GeneratorScreenState();
 }
 
-class _LoreWeaverHomePageState extends State<LoreWeaverHomePage>
+class _GeneratorScreenState extends State<GeneratorScreen>
     with SingleTickerProviderStateMixin {
   final TextEditingController _promptController = TextEditingController();
   final ScrollController _outputScroll = ScrollController();
 
-  // Accumulated story scenes
+  // In-session scenes (since last page open)
   final List<StoryScene> _scenes = [];
 
   String _responseText = '';
   bool _isLoading = false;
   _GenerationStatus _status = _GenerationStatus.idle;
   String _statusLabel = '';
-  int _sceneIndex = 0;
 
   late final AnimationController _pulseCtrl;
   late final Animation<double> _pulseAnim;
@@ -125,7 +132,6 @@ class _LoreWeaverHomePageState extends State<LoreWeaverHomePage>
 
     setState(() {
       _isLoading = true;
-      _sceneIndex++;
       _status = _GenerationStatus.planning;
       _statusLabel = 'Planning scene with Groq…';
       _responseText = '';
@@ -140,13 +146,16 @@ class _LoreWeaverHomePageState extends State<LoreWeaverHomePage>
 
     try {
       final response = await http.post(
-        Uri.parse('http://127.0.0.1:8000/generate_scene'),
-        headers: const {'Content-Type': 'application/json; charset=UTF-8'},
+        Uri.parse('$_baseUrl/generate_scene'),
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'Authorization': 'Bearer ${widget.token}',
+        },
         body: jsonEncode({
+          'project_id': widget.project.id,
           'user_prompt': _promptController.text,
           'active_characters': ['char_1'],
           'location': 'Tavern',
-          'seq_index': _sceneIndex,
         }),
       );
 
@@ -162,13 +171,14 @@ class _LoreWeaverHomePageState extends State<LoreWeaverHomePage>
         final sceneText = data['scene_text'] as String? ?? 'No text generated.';
         final criticReport =
             (data['critic_report'] as Map<String, dynamic>?) ?? {};
+        final seqIndex = data['sequence_index'] as int? ?? _scenes.length + 1;
         setState(() {
           _responseText = sceneText;
           _status = _GenerationStatus.success;
           _statusLabel = 'Scene approved — consistency checks passed.';
           _scenes.add(
             StoryScene(
-              index: _sceneIndex,
+              index: seqIndex,
               prompt: _promptController.text,
               text: sceneText,
               criticReport: criticReport,
@@ -538,7 +548,7 @@ class _LoreWeaverHomePageState extends State<LoreWeaverHomePage>
           _sectionLabel('OUTPUT'),
           const Spacer(),
           Text(
-            'Scene $_sceneIndex',
+            'Scene ${_scenes.length}',
             style: const TextStyle(
               color: _Palette.textMuted,
               fontSize: 11,
@@ -583,7 +593,7 @@ class _LoreWeaverHomePageState extends State<LoreWeaverHomePage>
           ),
         ),
         Text(
-          'Scene $_sceneIndex',
+          'Scene ${_scenes.length}',
           style: const TextStyle(
             color: _Palette.textMuted,
             fontSize: 11,
