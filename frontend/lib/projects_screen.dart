@@ -110,6 +110,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     return list.map((s) {
       final criticReport = (s['critic_report'] as Map<String, dynamic>?) ?? {};
       return StoryScene(
+        id: s['id'] ?? '',
         index: s['sequence_index'],
         prompt: s['prompt'],
         text: s['scene_text'],
@@ -130,9 +131,15 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   Future<void> _openReader(ProjectData project) async {
     final scenes = await _fetchScenes(project);
     if (!mounted) return;
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => StoryReaderPage(scenes: scenes)));
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => StoryReaderPage(
+          scenes: scenes,
+          projectId: project.id,
+          token: widget.token,
+        ),
+      ),
+    );
   }
 
   void _showNewProjectDialog() {

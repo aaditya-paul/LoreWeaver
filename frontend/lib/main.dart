@@ -102,6 +102,9 @@ class _GeneratorScreenState extends State<GeneratorScreen>
   // In-session scenes (since last page open) — used for scene count badge only
   final List<StoryScene> _scenes = [];
   bool _readerLoading = false;
+  String _selectedLlm = 'groq'; // 'local', 'groq', or 'gemini'
+  String? _lastSceneId; // for retry-delete
+  String _lastPrompt = '';
 
   String _responseText = '';
   bool _isLoading = false;
@@ -154,6 +157,7 @@ class _GeneratorScreenState extends State<GeneratorScreen>
           final criticReport =
               (s['critic_report'] as Map<String, dynamic>?) ?? {};
           return StoryScene(
+            id: s['id'] ?? '',
             index: s['sequence_index'],
             prompt: s['prompt'],
             text: s['scene_text'],
@@ -166,7 +170,13 @@ class _GeneratorScreenState extends State<GeneratorScreen>
         scenes = [];
       }
       Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => StoryReaderPage(scenes: scenes)),
+        MaterialPageRoute(
+          builder: (_) => StoryReaderPage(
+            scenes: scenes,
+            projectId: widget.project.id,
+            token: widget.token,
+          ),
+        ),
       );
     } catch (_) {
       // silently fall through — reader will open with empty scenes
@@ -183,10 +193,15 @@ class _GeneratorScreenState extends State<GeneratorScreen>
   Future<void> _generateScene() async {
     if (_promptController.text.trim().isEmpty) return;
 
+    final llmLabel = _selectedLlm == 'local'
+        ? 'Local LLM'
+        : _selectedLlm == 'gemini'
+        ? 'Gemini'
+        : 'Groq';
     setState(() {
       _isLoading = true;
       _status = _GenerationStatus.planning;
-      _statusLabel = 'Planning scene with Groq…';
+      _statusLabel = 'Planning scene with $llmLabel…';
       _responseText = '';
     });
 
@@ -194,7 +209,7 @@ class _GeneratorScreenState extends State<GeneratorScreen>
 
     setState(() {
       _status = _GenerationStatus.executing;
-      _statusLabel = 'Executing via Local LLM…';
+      _statusLabel = 'Executing via $llmLabel…';
     });
 
     try {
@@ -212,6 +227,7 @@ class _GeneratorScreenState extends State<GeneratorScreen>
               : _locationController.text.trim(),
           'characters_freetext': _charactersController.text.trim(),
           'active_characters': [],
+          'llm': _selectedLlm,
         }),
       );
 
@@ -228,6 +244,7 @@ class _GeneratorScreenState extends State<GeneratorScreen>
         final criticReport =
             (data['critic_report'] as Map<String, dynamic>?) ?? {};
         final seqIndex = data['sequence_index'] as int? ?? _scenes.length + 1;
+        final sceneId = data['scene_id'] as String? ?? '';
         // Persist location for next scene
         final usedLocation =
             data['location'] as String? ?? _locationController.text.trim();
@@ -235,11 +252,14 @@ class _GeneratorScreenState extends State<GeneratorScreen>
           _responseText = sceneText;
           _status = _GenerationStatus.success;
           _statusLabel = 'Scene approved — consistency checks passed.';
+          _lastSceneId = sceneId;
+          _lastPrompt = _promptController.text;
           if (usedLocation.isNotEmpty && usedLocation != 'Unspecified') {
             _locationController.text = usedLocation;
           }
           _scenes.add(
             StoryScene(
+              id: sceneId,
               index: seqIndex,
               prompt: _promptController.text,
               text: sceneText,
@@ -356,10 +376,12 @@ class _GeneratorScreenState extends State<GeneratorScreen>
             ],
           ),
           const Spacer(),
-          // Scene counter chip — always visible
-          _pill('LOCAL LLM', _Palette.successFg, _Palette.success),
-          const SizedBox(width: 8),
-          _pill('GROQ', _Palette.red, _Palette.redDim),
+          // LLM selector pills
+          _llmPill('LOCAL', 'local'),
+          const SizedBox(width: 6),
+          _llmPill('GROQ', 'groq'),
+          const SizedBox(width: 6),
+          _llmPill('GEMINI', 'gemini'),
           const SizedBox(width: 8),
           GestureDetector(
             onTap: _readerLoading ? null : _openReader,
@@ -411,21 +433,31 @@ class _GeneratorScreenState extends State<GeneratorScreen>
     );
   }
 
-  Widget _pill(String label, Color fg, Color bg) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(
-        color: bg.withAlpha(60),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: fg.withAlpha(80), width: 1),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: fg,
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.8,
+  Widget _llmPill(String label, String value) {
+    final isActive = _selectedLlm == value;
+    final Color fg = isActive ? _Palette.red : _Palette.textMuted;
+    final Color bg = isActive ? _Palette.redDim : _Palette.card;
+    return GestureDetector(
+      onTap: _isLoading ? null : () => setState(() => _selectedLlm = value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+        decoration: BoxDecoration(
+          color: isActive ? bg.withAlpha(100) : bg,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isActive ? fg.withAlpha(160) : _Palette.border,
+            width: isActive ? 1.4 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: fg,
+            fontSize: 10,
+            fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
+            letterSpacing: 0.8,
+          ),
         ),
       ),
     );

@@ -34,6 +34,8 @@ from memory.context_builder import ContextBuilder
 from memory.state_updater import StateUpdater
 from llm.local_llm import LocalLLMClient
 from llm.groq_client import GroqClient
+from llm.gemini_client import GeminiClient
+from llm.base_llm import BaseLLM
 from orchestrator.pipeline import StoryOrchestrator
 from auth.router import router as auth_router
 from auth.deps import get_current_user
@@ -111,10 +113,8 @@ def get_db():
 vector_db = VectorDBClient()
 log.info("✅  ChromaDB vector store initialized")
 
-# LLM clients
-local_llm = LocalLLMClient()
-groq_client = GroqClient()
-log.info("✅  LLM clients initialized (LocalLLM + Groq)")
+# LLM clients are now instantiated per-request based on user selection
+log.info("✅  LLM client classes ready (LocalLLM, Groq, Gemini)")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -143,6 +143,17 @@ class GenerateSceneRequest(BaseModel):
     active_characters: List[str] = []
     location: str = 'Unspecified'
     characters_freetext: str = ''  # plain-text character descriptions when no DB records exist
+    llm: str = 'groq'  # 'local', 'groq', or 'gemini'
+
+
+def _get_llm_client(name: str) -> BaseLLM:
+    """Instantiate the right LLM backend based on the user's selection."""
+    if name == 'local':
+        return LocalLLMClient()
+    elif name == 'gemini':
+        return GeminiClient()
+    else:
+        return GroqClient()
 
 
 @app.post("/generate_scene")
@@ -174,10 +185,12 @@ def generate_scene(
     # Resolve effective location (never let it be blank)
     effective_location = req.location.strip() or 'Unspecified'
 
-    # Run the generation pipeline
+    # Run the generation pipeline with the user-selected LLM
+    llm_client = _get_llm_client(req.llm)
+    log.info(f"   llm      : {req.llm} -> {type(llm_client).__name__}")
     context_builder = ContextBuilder(db, vector_db, project_id=req.project_id)
     state_updater = StateUpdater(db, vector_db)
-    orchestrator = StoryOrchestrator(context_builder, state_updater, local_llm, groq_client)
+    orchestrator = StoryOrchestrator(context_builder, state_updater, llm_client)
 
     success, text, critic_report = orchestrator.generate_next_scene(
         user_prompt=req.user_prompt,

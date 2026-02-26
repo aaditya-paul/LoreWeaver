@@ -97,6 +97,27 @@ def list_scenes(
     return [_scene_out(s) for s in scenes]
 
 
+@router.delete("/{project_id}/scenes/{scene_id}", status_code=204)
+def delete_scene(
+    project_id: str,
+    scene_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    # Verify project ownership
+    project = db.query(Project).filter_by(id=project_id, user_id=current_user["user_id"]).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    scene = db.query(Scene).filter_by(id=scene_id, project_id=project_id).first()
+    if not scene:
+        raise HTTPException(status_code=404, detail="Scene not found")
+
+    db.delete(scene)
+    db.commit()
+    log.info(f"[delete_scene] Deleted scene {scene_id} from project {project_id}")
+
+
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 def _project_out(p: Project) -> dict:
     return {

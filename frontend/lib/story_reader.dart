@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'palette.dart';
+
+const _baseUrl = 'http://127.0.0.1:8000';
 
 // ─── Data model for a single scene ──────────────────────────────────────────
 class StoryScene {
+  final String id;
   final int index;
   final String prompt;
   final String text;
@@ -11,6 +15,7 @@ class StoryScene {
   final DateTime generatedAt;
 
   const StoryScene({
+    required this.id,
     required this.index,
     required this.prompt,
     required this.text,
@@ -28,8 +33,15 @@ class StoryScene {
 // ─── Story Reader Page ───────────────────────────────────────────────────────
 class StoryReaderPage extends StatefulWidget {
   final List<StoryScene> scenes;
+  final String? projectId;
+  final String? token;
 
-  const StoryReaderPage({super.key, required this.scenes});
+  const StoryReaderPage({
+    super.key,
+    required this.scenes,
+    this.projectId,
+    this.token,
+  });
 
   @override
   State<StoryReaderPage> createState() => _StoryReaderPageState();
@@ -39,6 +51,13 @@ class _StoryReaderPageState extends State<StoryReaderPage> {
   final ScrollController _scroll = ScrollController();
   double _fontSize = 16.0;
   bool _showMeta = false;
+  late List<StoryScene> _scenes;
+
+  @override
+  void initState() {
+    super.initState();
+    _scenes = List.from(widget.scenes);
+  }
 
   @override
   void dispose() {
@@ -47,7 +66,7 @@ class _StoryReaderPageState extends State<StoryReaderPage> {
   }
 
   void _copyAll() {
-    final full = widget.scenes
+    final full = _scenes
         .map((s) => '── Scene ${s.index} ──\n\n${s.text}')
         .join('\n\n\n');
     Clipboard.setData(ClipboardData(text: full));
@@ -68,6 +87,89 @@ class _StoryReaderPageState extends State<StoryReaderPage> {
     );
   }
 
+  Future<void> _deleteScene(StoryScene scene) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppPalette.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text(
+          'Delete Scene?',
+          style: TextStyle(
+            color: AppPalette.textPrimary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        content: Text(
+          'This will permanently delete Scene ${scene.index}.',
+          style: const TextStyle(color: AppPalette.textSecondary, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text(
+              'CANCEL',
+              style: TextStyle(color: AppPalette.textSecondary, fontSize: 12),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppPalette.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text(
+              'DELETE',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    // Call API if project context is available
+    if (widget.projectId != null && widget.token != null) {
+      try {
+        await http.delete(
+          Uri.parse(
+            '$_baseUrl/projects/${widget.projectId}/scenes/${scene.id}',
+          ),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ${widget.token}',
+          },
+        );
+      } catch (_) {
+        // proceed with local removal even if API fails
+      }
+    }
+
+    setState(() => _scenes.removeWhere((s) => s.id == scene.id));
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Scene ${scene.index} deleted',
+            style: const TextStyle(color: AppPalette.textPrimary, fontSize: 13),
+          ),
+          backgroundColor: AppPalette.surface,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: const BorderSide(color: AppPalette.border),
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -77,16 +179,16 @@ class _StoryReaderPageState extends State<StoryReaderPage> {
           _buildAppBar(context),
           _buildToolbar(),
           Expanded(
-            child: widget.scenes.isEmpty
+            child: _scenes.isEmpty
                 ? _buildEmpty()
                 : Scrollbar(
                     controller: _scroll,
                     child: ListView.separated(
                       controller: _scroll,
                       padding: const EdgeInsets.fromLTRB(24, 20, 24, 48),
-                      itemCount: widget.scenes.length,
+                      itemCount: _scenes.length,
                       separatorBuilder: (_, __) => _buildDivider(),
-                      itemBuilder: (_, i) => _buildSceneBlock(widget.scenes[i]),
+                      itemBuilder: (_, i) => _buildSceneBlock(_scenes[i]),
                     ),
                   ),
           ),
@@ -133,8 +235,8 @@ class _StoryReaderPageState extends State<StoryReaderPage> {
                 ),
               ),
               Text(
-                '${widget.scenes.length} scene${widget.scenes.length == 1 ? '' : 's'}  ·  '
-                '${widget.scenes.fold(0, (sum, s) => sum + s.text.split(' ').length)} words',
+                '${_scenes.length} scene${_scenes.length == 1 ? '' : 's'}  ·  '
+                '${_scenes.fold(0, (sum, s) => sum + s.text.split(' ').length)} words',
                 style: const TextStyle(
                   color: AppPalette.textSecondary,
                   fontSize: 11,
@@ -344,6 +446,25 @@ class _StoryReaderPageState extends State<StoryReaderPage> {
                   ),
                 ],
               ),
+            const SizedBox(width: 8),
+            // Delete button
+            GestureDetector(
+              onTap: () => _deleteScene(scene),
+              child: Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: AppPalette.card,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: AppPalette.border),
+                ),
+                child: const Icon(
+                  Icons.delete_outline_rounded,
+                  size: 14,
+                  color: AppPalette.textMuted,
+                ),
+              ),
+            ),
           ],
         ),
 
