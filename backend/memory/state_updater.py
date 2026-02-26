@@ -1,0 +1,65 @@
+import json
+from typing import List, Dict, Any
+from sqlalchemy.orm import Session
+from backend.db.models import Character, TimelineEvent
+from backend.db.vector_db import VectorDBClient
+
+class StateUpdater:
+    def __init__(self, db_session: Session, vector_db: VectorDBClient):
+        self.db = db_session
+        self.vector_db = vector_db
+        
+    def update_character_state(self, character_id: str, new_state_patch: Dict[str, Any]):
+        """
+        Updates the mutable state of a character. 
+        new_state_patch contains keys to add/update in the current JSON state.
+        """
+        character = self.db.query(Character).filter_by(id=character_id).first()
+        if not character:
+            raise ValueError(f"Character {character_id} not found.")
+            
+        # Parse current state (assuming it's a dict depending on DB JSON dialect, here we merge dicts)
+        current_state = character.current_state if isinstance(character.current_state, dict) else json.loads(character.current_state)
+        
+        # Apply patch
+        for key, value in new_state_patch.items():
+            if value is None:
+                current_state.pop(key, None) # Remove if None
+            else:
+                current_state[key] = value
+                
+        # SQLAlchemy needs to know the JSON column was mutated if we edit in place,
+        # so we reassign the reference.
+        character.current_state = current_state
+        self.db.commit()
+        
+    def commit_scene(self, scene_id: str, seq_index: int, location: str, participants: List[str], summary: str, semantic_intent: str, causal_prereqs: List[str] = None):
+        """
+        Commits a completed scene to both Structured DB (Timeline) and Vector DB.
+        """
+        if causal_prereqs is None:
+            causal_prereqs = []
+            
+        # 1. Update Timeline
+        new_event = TimelineEvent(
+            id=scene_id,
+            sequence_index=seq_index,
+            location=location,
+            participants=participants,
+            summary=summary,
+            causal_prerequisites=causal_prereqs
+        )
+        self.db.add(new_event)
+        
+        # 2. Update Vector Episodic Memory
+        self.vector_db.add_scene(
+            scene_id=scene_id,
+            summary=semantic_intent, # Intent + emotional valance for semantic search
+            metadata={
+                "sequence_index": seq_index,
+                "location": location,
+                "participants": ",".join(participants)
+            }
+        )
+        
+        self.db.commit()

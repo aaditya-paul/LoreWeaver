@@ -1,0 +1,45 @@
+# LoreWeaver Implementation Plan
+
+## Goal Description
+Implement the core system for LoreWeaver based on the approved architecture. The system requires a Python backend to handle orchestration, structured and vector memory, and LLM prompting, along with a Flutter frontend for the user interface.
+
+## Proposed Changes
+
+We will start by establishing a monorepo structure with distinct `backend` and `frontend` folders.
+
+### 1. Project Structure
+- `backend/`: Python API and Orchestrator.
+- `frontend/`: Flutter application.
+
+### 2. Backend Implementation (Python)
+We will use Python for the backend to leverage its strong LLM and data ecosystem.
+**Dependencies:**
+- `fastapi` & `uvicorn` for the API Gateway.
+- `sqlalchemy` for the Structured DB (SQLite).
+- `chromadb` for the Episodic Memory Vector DB.
+- `pydantic` for data validation and schema definitions.
+- `groq` and `google-generativeai` for API model access.
+- `requests` or `aiohttp` for local LLM (Ollama) interaction.
+
+**Core Modules:**
+- `backend/db/`: SQLAlchemy models and ChromaDB client initialization.
+- `backend/memory/`: Context Builder (Tier 1-3 injection) and State Updater.
+- `backend/llm/`: Clients for Groq (Planner/Critic), Local LLM (Executor), and Gemini (Synthesizer).
+- `backend/orchestrator/`: The main state-machine loop that ties planning, execution, and evaluation together.
+- `backend/main.py`: FastAPI server exposing endpoints (`/generate_scene`, `/character/create`, etc.).
+
+### 3. Frontend Implementation (Flutter)
+We will initialize a standard Flutter project.
+- Basic state management (Provider or Riverpod).
+- API client to communicate with the FastAPI backend.
+- UI components: Core story view, Character inspection panel, and Timeline view.
+
+## Verification Plan
+### Automated Tests
+- Unit tests for database CRUD operations and schema validation using `pytest`.
+- Mock API tests for the LLM connectors.
+
+### Manual Verification
+- Run the backend server locally and use `curl` or Swagger UI to test the scene generation pipeline.
+- Verify that character states are correctly updated in the SQLite database after a scene is generated.
+- Ensure ChromaDB returns semantically relevant past scenes based on a given scene outline.

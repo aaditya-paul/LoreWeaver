@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+sqlalchemy
+chromadb
+pydantic
+groq
+google-generativeai
+requests
+pytest

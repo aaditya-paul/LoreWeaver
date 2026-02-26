@@ -1,0 +1,24 @@
+# LoreWeaver Implementation Checklist
+
+- [ ] Project Initialization
+  - [ ] Initialize Git repository
+  - [ ] Set up Python backend directory and virtual environment
+  - [ ] Initialize Flutter frontend directory
+- [ ] Database Layer Implementation
+  - [ ] Define SQLite schemas (Characters, WorldRules, Timeline)
+  - [ ] Set up ChromaDB for Vector Memory
+- [ ] Memory Management Module
+  - [ ] Implement Context Builder (Tier 1, 2, 3 retrieval)
+  - [ ] Implement State Updater
+- [ ] Model Integration
+  - [ ] Local LLM connector (e.g., using Ollama or direct HTTP)
+  - [ ] Groq API integration for Planner/Critic
+  - [ ] Gemini API integration for Synthesizer
+- [ ] Orchestrator & Pipeline
+  - [ ] Scene Outline Generation Logic
+  - [ ] Scene Execution Logic
+  - [ ] Self-Consistency Critic Logic
+- [ ] API Gateway
+  - [ ] FastAPI setup and endpoint definitions
+- [ ] Frontend (Flutter)
+  - [ ] Basic UI setup for interacting with the engine
