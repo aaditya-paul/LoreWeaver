@@ -1,7 +1,7 @@
 from typing import List, Dict, Any
 from sqlalchemy.orm import Session
-from backend.db.models import Character, WorldRule, TimelineEvent
-from backend.db.vector_db import VectorDBClient
+from db.models import Character, WorldRule, TimelineEvent
+from db.vector_db import VectorDBClient
 
 class ContextBuilder:
     def __init__(self, db_session: Session, vector_db: VectorDBClient):

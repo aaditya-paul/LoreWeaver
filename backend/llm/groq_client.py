@@ -1,13 +1,17 @@
 import os
 import json
+import logging
 from groq import Groq
 from typing import Dict, Any
+
+log = logging.getLogger("loreweaver.groq")
 
 class GroqClient:
     def __init__(self):
         # Assumes GROQ_API_KEY is in environment variables
-        self.client = Groq()
-        self.model = "llama3-70b-8192"
+        api_key = os.environ.get("GROQ_API_KEY", "dummy_key_to_allow_app_startup")
+        self.client = Groq(api_key=api_key)
+        self.model = "openai/gpt-oss-120b"
         
     def plan_scene(self, current_state: str, working_memory: str, user_prompt: str) -> Dict[str, Any]:
         """
@@ -24,7 +28,8 @@ class GroqClient:
         )
         
         prompt = f"### STATE ###\n{current_state}\n\n### RECENT MEMORY ###\n{working_memory}\n\n### USER PROMPT ###\n{user_prompt}"
-        
+        log.debug(f"[plan_scene] Sending prompt to Groq ({len(prompt)} chars)")
+
         response = self.client.chat.completions.create(
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -33,10 +38,15 @@ class GroqClient:
             model=self.model,
             response_format={"type": "json_object"}
         )
-        
+
+        raw = response.choices[0].message.content
+        log.debug(f"[plan_scene] Raw Groq response: {raw}")
         try:
-            return json.loads(response.choices[0].message.content)
-        except Exception:
+            result = json.loads(raw)
+            log.debug(f"[plan_scene] Parsed outline: {result}")
+            return result
+        except Exception as e:
+            log.error(f"[plan_scene] Failed to parse JSON: {e}")
             return {"error": "Failed to parse JSON outline"}
 
     def evaluate_consistency(self, state: str, scene_text: str) -> Dict[str, Any]:
@@ -58,8 +68,9 @@ class GroqClient:
             "}"
         )
         
-        prompt = f"### STATE CONSTRAINTS ###\n{state}\n\n### SCENE TEXT ###\n{scene_text}"
-        
+        prompt = f"### STATE CONSTRAINTS ###\n{state}\n\n### SCENE TEXT ###\n{scene_text[:3000]}"
+        log.debug(f"[evaluate_consistency] Sending to Groq critic ({len(prompt)} chars)")
+
         response = self.client.chat.completions.create(
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -68,8 +79,13 @@ class GroqClient:
             model=self.model,
             response_format={"type": "json_object"}
         )
-        
+
+        raw = response.choices[0].message.content
+        log.debug(f"[evaluate_consistency] Raw Groq critic response: {raw}")
         try:
-            return json.loads(response.choices[0].message.content)
-        except Exception:
+            result = json.loads(raw)
+            log.debug(f"[evaluate_consistency] Parsed critic report: {result}")
+            return result
+        except Exception as e:
+            log.error(f"[evaluate_consistency] Failed to parse JSON: {e}")
             return {"approved": False, "error": "Critic evaluation failed"}

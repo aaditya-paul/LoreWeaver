@@ -1,6 +1,9 @@
 import requests
 import json
+import logging
 from typing import Dict, Any
+
+log = logging.getLogger("loreweaver.local_llm")
 
 class LocalLLMClient:
     def __init__(self, base_url="http://localhost:11434", model="llama3:8b"):
@@ -29,9 +32,15 @@ class LocalLLMClient:
             }
         }
         
+        log.info(f"[generate_scene] Sending to Ollama  model={self.model}  context_len={len(context)}")
+        log.debug(f"[generate_scene] Outline: {json.dumps(json_outline)}")
         try:
             response = requests.post(f"{self.base_url}/api/generate", json=payload)
             response.raise_for_status()
-            return response.json().get("response", "")
+            result = response.json().get("response", "")
+            log.info(f"[generate_scene] Ollama returned {len(result)} chars")
+            log.debug(f"[generate_scene] Output (first 500 chars):\n{result[:500]}")
+            return result
         except requests.exceptions.RequestException as e:
+            log.error(f"[generate_scene] Ollama request failed: {e}")
             return f"Error connecting to Local LLM: {str(e)}"
