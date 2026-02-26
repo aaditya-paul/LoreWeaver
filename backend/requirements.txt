@@ -1,9 +1,10 @@
 fastapi
-uvicorn
+uvicorn[standard]
 sqlalchemy
 chromadb
-pydantic
 groq
 google-generativeai
 requests
-pytest
+python-dotenv
+python-jose[cryptography]
+passlib[bcrypt]
