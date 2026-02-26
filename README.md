@@ -14,7 +14,7 @@ Instead of relying solely on large context windows, LoreWeaver models stories as
 - **🔄 Multi-Agent Pipeline**: Planning, execution, and critique phases using different specialized models
 - **✅ Automated Consistency Checking**: Every scene is validated against character traits, timeline events, and world rules
 - **🎯 Smart Context Assembly**: 3-tier retrieval system ensures relevant information is always available
-- **⚡ Multi-Model Routing**: 
+- **⚡ Multi-Model Routing**:
   - Local LLMs for bulk creative generation (zero API cost)
   - Groq for fast planning and critique
   - Gemini for deep synthesis and long-context reasoning
@@ -33,11 +33,13 @@ Scene Generation Pipeline:
 ### Memory System
 
 **Structured Memory (SQLite/Graph)**
+
 - Character states, psychology, relationships
 - World rules (magic systems, physics, politics)
 - Timeline events with causal dependencies
 
 **Episodic Memory (Vector DB)**
+
 - Embedded scene summaries for semantic retrieval
 - Metadata-enriched for context-aware querying
 
@@ -50,17 +52,20 @@ Scene Generation Pipeline:
 ## Tech Stack
 
 **Backend**
+
 - Python 3.9+
 - FastAPI (API Gateway)
 - SQLAlchemy (Structured DB)
 - ChromaDB (Vector embeddings)
 
 **LLM Integration**
+
 - Local: Llama 3 / Mistral (via llama.cpp or Ollama)
 - Groq API: Llama-3-70B for fast inference
 - Google Gemini 1.5 Pro: Long-context synthesis
 
 **Frontend** (Planned)
+
 - Flutter for cross-platform UI
 
 ## Installation
@@ -74,12 +79,14 @@ Scene Generation Pipeline:
 ### Setup
 
 1. **Clone the repository**
+
    ```bash
    git clone <repository-url>
    cd LoreWeaver
    ```
 
 2. **Install dependencies**
+
    ```bash
    cd backend
    pip install -r requirements.txt
@@ -87,6 +94,7 @@ Scene Generation Pipeline:
 
 3. **Configure environment**
    Create a `.env` file in the `backend` directory:
+
    ```env
    GROQ_API_KEY=your_groq_key_here
    GEMINI_API_KEY=your_gemini_key_here
@@ -94,6 +102,7 @@ Scene Generation Pipeline:
    ```
 
 4. **Initialize databases**
+
    ```bash
    python -m db.models  # Creates SQLite schema
    python -m db.vector_db  # Initializes ChromaDB
@@ -186,6 +195,7 @@ LoreWeaver tracks three key consistency metrics:
 ## Detailed Documentation
 
 For in-depth technical documentation, including:
+
 - Complete memory architecture schemas
 - Model routing decision logic
 - Prompt engineering strategies
@@ -207,6 +217,7 @@ See [ARCHITECTURE_DESIGN.md](ARCHITECTURE_DESIGN.md)
 Contributions are welcome! This is a research-grade project exploring the boundaries of AI-assisted creative writing.
 
 Areas of interest:
+
 - Novel consistency checking algorithms
 - Memory retrieval optimization
 - Alternative state representation schemas
