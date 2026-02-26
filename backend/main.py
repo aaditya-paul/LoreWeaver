@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 from typing import List, Dict, Any
 
 from backend.db.models import init_db, Base, Character, WorldRule
-from backend.db.vector_db import vector_db
+from backend.db.vector_db import VectorDBClient
 from backend.memory.context_builder import ContextBuilder
 from backend.memory.state_updater import StateUpdater
 from backend.llm.local_llm import LocalLLMClient
@@ -13,6 +13,14 @@ from backend.llm.groq_client import GroqClient
 from backend.orchestrator.pipeline import StoryOrchestrator
 
 app = FastAPI(title="LoreWeaver API", description="Research-Grade AI Storytelling Engine")
+
+# SQLite Database Setup
+SQLALCHEMY_DATABASE_URL = "sqlite:///./loreweaver.db"
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+init_db(engine)
+
+# Vector DB Setup
+vector_db = VectorDBClient()
 
 # SQLite Database Setup
 SQLALCHEMY_DATABASE_URL = "sqlite:///./loreweaver.db"

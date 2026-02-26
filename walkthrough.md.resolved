@@ -1,0 +1,65 @@
+# LoreWeaver MVP Implementation - Walkthrough
+
+## What was Accomplished
+
+The implementation phase for the LoreWeaver prototype is complete based on the architecture design. Both the Python backend and Flutter frontend pieces are in place.
+
+### Backend (Python/FastAPI)
+1. **Database Layer ([models.py](file:///c:/Users/Aaditya%20Paul/Documents/Projects/Personal%20Projects/LoreWeaver/backend/db/models.py))**: Configured SQLite with SQLAlchemy schemas for [Character](file:///c:/Users/Aaditya%20Paul/Documents/Projects/Personal%20Projects/LoreWeaver/backend/db/models.py#7-16), [WorldRule](file:///c:/Users/Aaditya%20Paul/Documents/Projects/Personal%20Projects/LoreWeaver/backend/db/models.py#17-24), and [TimelineEvent](file:///c:/Users/Aaditya%20Paul/Documents/Projects/Personal%20Projects/LoreWeaver/backend/db/models.py#25-34).
+2. **Vector Database ([vector_db.py](file:///c:/Users/Aaditya%20Paul/Documents/Projects/Personal%20Projects/LoreWeaver/backend/db/vector_db.py))**: Set up ChromaDB local persistent instance for semantic search over scene summaries (Episodic Memory).
+3. **Memory Management ([context_builder.py](file:///c:/Users/Aaditya%20Paul/Documents/Projects/Personal%20Projects/LoreWeaver/backend/memory/context_builder.py) & [state_updater.py](file:///c:/Users/Aaditya%20Paul/Documents/Projects/Personal%20Projects/LoreWeaver/backend/memory/state_updater.py))**: Implemented the 3-Tier context retrieval strategy and the state updater to push completed scenes to databases.
+4. **LLM Integration**: 
+   - [LocalLLMClient](file:///c:/Users/Aaditya%20Paul/Documents/Projects/Personal%20Projects/LoreWeaver/backend/llm/local_llm.py#5-38) targeting a local Ollama instance (llama3:8b) for bulk execution.
+   - [GroqClient](file:///c:/Users/Aaditya%20Paul/Documents/Projects/Personal%20Projects/LoreWeaver/backend/llm/groq_client.py#6-76) for lightning-fast JSON scene planning and critic evaluation.
+   - [GeminiSynthesizer](file:///c:/Users/Aaditya%20Paul/Documents/Projects/Personal%20Projects/LoreWeaver/backend/llm/gemini_client.py#6-45) for future long-term massive context analysis.
+5. **Orchestrator Pipeline ([pipeline.py](file:///c:/Users/Aaditya%20Paul/Documents/Projects/Personal%20Projects/LoreWeaver/backend/orchestrator/pipeline.py))**: Built the state-machine loop that connects planning -> execution -> evaluation + memory commits.
+6. **API Gateway ([main.py](file:///c:/Users/Aaditya%20Paul/Documents/Projects/Personal%20Projects/LoreWeaver/backend/main.py))**: Exposed `/generate_scene` and `/character/create` endpoints.
+
+### Frontend (Flutter)
+- Initialized a new Flutter project in the `frontend/` directory.
+- Replaced the default counter app with a custom [LoreWeaverHomePage](file:///c:/Users/Aaditya%20Paul/Documents/Projects/Personal%20Projects/LoreWeaver/frontend/lib/main.dart#25-31) in [main.dart](file:///c:/Users/Aaditya%20Paul/Documents/Projects/Personal%20Projects/LoreWeaver/frontend/lib/main.dart).
+- Added a basic UI with a Prompt input box, a Generate button, and a scrollable text area to display output.
+- Connected the UI to the backend POST endpoint using the `http` package.
+
+## How to Test the MVP
+
+You will need to run both the backend server and the Flutter application locally.
+
+### 1. Start the Backend Server
+
+Open a terminal and navigate to the backend folder:
+
+```bash
+cd backend
+```
+
+Ensure your virtual environment is active, then start FastAPI:
+
+```bash
+# Set your API Keys first
+set GROQ_API_KEY=your_key_here
+set GOOGLE_API_KEY=your_key_here
+
+# Run the server
+uvicorn main:app --reload
+```
+
+*Note: The backend assumes you have a local LLM running. e.g., `ollama run llama3` running on port `11434`.*
+
+### 2. Run the Flutter Frontend
+
+Open a new terminal and navigate to the frontend folder:
+
+```bash
+cd frontend
+```
+
+Run the Flutter app:
+
+```bash
+flutter run -d chrome  # Run in browser
+# OR
+flutter run -d windows # Run as desktop app
+```
+
+Once open, type a prompt (e.g., "The hero walks into a dark tavern") and click Generate. The UI will send the request to the backend pipeline which orchestrates the Groq Planner, Local Execution, and Groq Critic, and returns the generated story prose.
