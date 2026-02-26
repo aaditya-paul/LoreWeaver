@@ -24,6 +24,8 @@ class StoryOrchestrator:
         active_characters: List[str],
         location: str,
         seq_index: int,
+        project_id: str = None,
+        characters_freetext: str = None,
         max_retries: int = 2,
     ) -> Tuple[bool, str, Dict[str, Any]]:
         """
@@ -32,10 +34,15 @@ class StoryOrchestrator:
         """
         log.debug("── PIPELINE START ──────────────────────────────────────")
 
+        # Inject project_id into context builder for project-scoped memory
+        self.context_builder.project_id = project_id
+
         # ── Phase 1: Build Tier 1 & 2 context for planning ───────────────────
-        log.debug("[Phase 1] Building Tier 1 (character state) context…")
+        log.debug("[Phase 1] Building Tier 1 (character + location) context…")
         t = time.perf_counter()
-        tier_1_state = self.context_builder.build_tier_1_context(active_characters, location)
+        tier_1_state = self.context_builder.build_tier_1_context(
+            active_characters, location, characters_freetext
+        )
         log.debug(f"   Tier 1 done in {time.perf_counter()-t:.2f}s  ({len(tier_1_state)} chars)")
         log.debug(f"   Tier 1 content:\n{tier_1_state[:600]}")
 

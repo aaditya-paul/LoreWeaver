@@ -140,8 +140,9 @@ app.include_router(projects_router)
 class GenerateSceneRequest(BaseModel):
     project_id: str
     user_prompt: str
-    active_characters: List[str]
-    location: str
+    active_characters: List[str] = []
+    location: str = 'Unspecified'
+    characters_freetext: str = ''  # plain-text character descriptions when no DB records exist
 
 
 @app.post("/generate_scene")
@@ -170,16 +171,21 @@ def generate_scene(
     ).scalar() or 0
     seq_index = max_seq + 1
 
+    # Resolve effective location (never let it be blank)
+    effective_location = req.location.strip() or 'Unspecified'
+
     # Run the generation pipeline
-    context_builder = ContextBuilder(db, vector_db)
+    context_builder = ContextBuilder(db, vector_db, project_id=req.project_id)
     state_updater = StateUpdater(db, vector_db)
     orchestrator = StoryOrchestrator(context_builder, state_updater, local_llm, groq_client)
 
     success, text, critic_report = orchestrator.generate_next_scene(
         user_prompt=req.user_prompt,
         active_characters=req.active_characters,
-        location=req.location,
+        location=effective_location,
         seq_index=seq_index,
+        project_id=req.project_id,
+        characters_freetext=req.characters_freetext or None,
     )
 
     elapsed = time.perf_counter() - t_start

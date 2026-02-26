@@ -93,10 +93,15 @@ class GeneratorScreen extends StatefulWidget {
 class _GeneratorScreenState extends State<GeneratorScreen>
     with SingleTickerProviderStateMixin {
   final TextEditingController _promptController = TextEditingController();
+  final TextEditingController _locationController = TextEditingController(
+    text: 'Unspecified',
+  );
+  final TextEditingController _charactersController = TextEditingController();
   final ScrollController _outputScroll = ScrollController();
 
-  // In-session scenes (since last page open)
+  // In-session scenes (since last page open) — used for scene count badge only
   final List<StoryScene> _scenes = [];
+  bool _readerLoading = false;
 
   String _responseText = '';
   bool _isLoading = false;
@@ -123,8 +128,56 @@ class _GeneratorScreenState extends State<GeneratorScreen>
   void dispose() {
     _pulseCtrl.dispose();
     _promptController.dispose();
+    _locationController.dispose();
+    _charactersController.dispose();
     _outputScroll.dispose();
     super.dispose();
+  }
+
+  /// Fetch all scenes for the current project from the backend and open reader.
+  Future<void> _openReader() async {
+    if (_readerLoading) return;
+    setState(() => _readerLoading = true);
+    try {
+      final res = await http.get(
+        Uri.parse('$_baseUrl/projects/${widget.project.id}/scenes'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${widget.token}',
+        },
+      );
+      if (!mounted) return;
+      final List<StoryScene> scenes;
+      if (res.statusCode == 200) {
+        final list = jsonDecode(res.body) as List;
+        scenes = list.map((s) {
+          final criticReport =
+              (s['critic_report'] as Map<String, dynamic>?) ?? {};
+          return StoryScene(
+            index: s['sequence_index'],
+            prompt: s['prompt'],
+            text: s['scene_text'],
+            criticReport: criticReport,
+            generatedAt:
+                DateTime.tryParse(s['created_at'] ?? '') ?? DateTime.now(),
+          );
+        }).toList();
+      } else {
+        scenes = [];
+      }
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => StoryReaderPage(scenes: scenes)),
+      );
+    } catch (_) {
+      // silently fall through — reader will open with empty scenes
+      if (mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const StoryReaderPage(scenes: [])),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _readerLoading = false);
+    }
   }
 
   Future<void> _generateScene() async {
@@ -154,8 +207,11 @@ class _GeneratorScreenState extends State<GeneratorScreen>
         body: jsonEncode({
           'project_id': widget.project.id,
           'user_prompt': _promptController.text,
-          'active_characters': ['char_1'],
-          'location': 'Tavern',
+          'location': _locationController.text.trim().isEmpty
+              ? 'Unspecified'
+              : _locationController.text.trim(),
+          'characters_freetext': _charactersController.text.trim(),
+          'active_characters': [],
         }),
       );
 
@@ -172,10 +228,16 @@ class _GeneratorScreenState extends State<GeneratorScreen>
         final criticReport =
             (data['critic_report'] as Map<String, dynamic>?) ?? {};
         final seqIndex = data['sequence_index'] as int? ?? _scenes.length + 1;
+        // Persist location for next scene
+        final usedLocation =
+            data['location'] as String? ?? _locationController.text.trim();
         setState(() {
           _responseText = sceneText;
           _status = _GenerationStatus.success;
           _statusLabel = 'Scene approved — consistency checks passed.';
+          if (usedLocation.isNotEmpty && usedLocation != 'Unspecified') {
+            _locationController.text = usedLocation;
+          }
           _scenes.add(
             StoryScene(
               index: seqIndex,
@@ -294,51 +356,56 @@ class _GeneratorScreenState extends State<GeneratorScreen>
             ],
           ),
           const Spacer(),
-          // Scene counter chip
-          if (_scenes.isNotEmpty)
-            GestureDetector(
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) =>
-                      StoryReaderPage(scenes: List.unmodifiable(_scenes)),
-                ),
+          // Scene counter chip — always visible
+          _pill('LOCAL LLM', _Palette.successFg, _Palette.success),
+          const SizedBox(width: 8),
+          _pill('GROQ', _Palette.red, _Palette.redDim),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: _readerLoading ? null : _openReader,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: _Palette.card,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _Palette.border),
               ),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: _Palette.card,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _Palette.border),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.menu_book_rounded,
-                      size: 14,
-                      color: _Palette.red,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'READ  ${_scenes.length}',
-                      style: const TextStyle(
-                        color: _Palette.textSecondary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.8,
+              child: _readerLoading
+                  ? const SizedBox(
+                      width: 40,
+                      height: 14,
+                      child: Center(
+                        child: SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 1.5,
+                            color: _Palette.textSecondary,
+                          ),
+                        ),
                       ),
+                    )
+                  : Row(
+                      children: [
+                        const Icon(
+                          Icons.menu_book_rounded,
+                          size: 14,
+                          color: _Palette.red,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'READ  ALL',
+                          style: const TextStyle(
+                            color: _Palette.textSecondary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-            )
-          else ...[
-            _pill('LOCAL LLM', _Palette.successFg, _Palette.success),
-            const SizedBox(width: 8),
-            _pill('GROQ', _Palette.red, _Palette.redDim),
-          ],
+            ),
+          ),
         ],
       ),
     );
@@ -457,6 +524,65 @@ class _GeneratorScreenState extends State<GeneratorScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // ── Location + Characters row ─────────────────────────────────────
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _sectionLabel('LOCATION'),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: _locationController,
+                    style: const TextStyle(
+                      color: _Palette.textPrimary,
+                      fontSize: 13,
+                    ),
+                    cursorColor: _Palette.red,
+                    decoration: const InputDecoration(
+                      hintText: 'e.g. Dark Dungeon',
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _sectionLabel('CHARACTERS'),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: _charactersController,
+                    style: const TextStyle(
+                      color: _Palette.textPrimary,
+                      fontSize: 13,
+                    ),
+                    cursorColor: _Palette.red,
+                    decoration: const InputDecoration(
+                      hintText: 'e.g. Aria (brave warrior), Mace (old wizard)',
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // ── Scene Prompt ──────────────────────────────────────────────────
         _sectionLabel('SCENE PROMPT'),
         const SizedBox(height: 8),
         TextField(

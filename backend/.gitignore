@@ -3,6 +3,9 @@
 .DS_Store
 Thumbs.db
 
+/chroma_db
+/loreweaver.db
+
 # Environment variables
 .env
 *.env

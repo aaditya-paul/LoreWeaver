@@ -1,14 +1,12 @@
 import os
+import bcrypt
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.orm import Session
 
-# Lazy imports to avoid circular deps at module load time
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 _oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
 
 def _get_secret():
     return os.environ.get("JWT_SECRET", "changeme")
@@ -20,12 +18,15 @@ def _get_expire_minutes():
     return int(os.environ.get("JWT_EXPIRE_MINUTES", "10080"))
 
 
+# ─── Password hashing (pure bcrypt, no passlib) ───────────────────────────────
 def hash_password(plain: str) -> str:
-    return _pwd_context.hash(plain)
+    return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return _pwd_context.verify(plain, hashed)
+    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
+
+# ─── JWT ──────────────────────────────────────────────────────────────────────
 def create_access_token(data: dict) -> str:
     payload = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(minutes=_get_expire_minutes())
@@ -36,8 +37,9 @@ def decode_token(token: str) -> dict:
     return jwt.decode(token, _get_secret(), algorithms=[_get_algorithm()])
 
 
+# ─── FastAPI dependency ───────────────────────────────────────────────────────
 def get_current_user(token: str = Depends(_oauth2_scheme)):
-    """FastAPI dependency — returns the decoded JWT payload dict."""
+    """Returns the decoded JWT payload dict {user_id, email}."""
     credentials_exc = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid or expired token",
