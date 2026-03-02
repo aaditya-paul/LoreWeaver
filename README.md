@@ -66,7 +66,7 @@ Scene Generation Pipeline:
 - Groq API: Llama-3-70B for fast inference
 - Google Gemini 1.5 Pro: Long-context synthesis
 
-**Frontend** 
+**Frontend**
 
 - Flutter (web, mobile, desktop)
 - Served via nginx in Docker
@@ -110,9 +110,9 @@ docker compose up -d --build
 
 That's it. The first build downloads Flutter and compiles the web app — it takes a few minutes. Subsequent starts (without `--build`) are instant.
 
-| Service  | URL                          |
-|----------|------------------------------|
-| Frontend | http://localhost:8080        |
+| Service               | URL                        |
+| --------------------- | -------------------------- |
+| Frontend              | http://localhost:8080      |
 | Backend API / Swagger | http://localhost:8000/docs |
 
 ### Stopping
