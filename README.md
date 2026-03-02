@@ -2,6 +2,8 @@
 
 A research-grade storytelling engine designed to generate long-form narratives (20k+ words) with strong consistency, coherent character development, and maintained world rules.
 
+demo link : https://youtu.be/3TZ_WmWPSOE
+
 ## Overview
 
 LoreWeaver solves the fundamental problem of AI-generated long-form fiction: **narrative collapse**. Most LLMs struggle to maintain consistency beyond a few thousand words, leading to contradictory character behaviors, forgotten plot points, and broken world rules.
