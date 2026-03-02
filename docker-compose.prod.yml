@@ -1,0 +1,41 @@
+# Production compose file — uses pre-built images from GitHub Container Registry.
+# Recipients only need this file + a filled-in backend/.env
+#
+# Usage:
+#   cp backend/.env.example backend/.env   # add your API keys
+#   docker compose -f docker-compose.prod.yml up -d
+
+version: "3.9"
+
+services:
+  backend:
+    image: ghcr.io/aaditya-paul/loreweaver-backend:latest
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: sqlite:////app/persist/loreweaver.db
+      CHROMA_DIR: /app/persist/chroma_db
+      OLLAMA_URL: http://host.docker.internal:11434
+    volumes:
+      - backend_data:/app/persist
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/docs"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  frontend:
+    image: ghcr.io/aaditya-paul/loreweaver-frontend:latest
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  backend_data:

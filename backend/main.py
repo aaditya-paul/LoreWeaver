@@ -94,11 +94,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# SQLite
-SQLALCHEMY_DATABASE_URL = "sqlite:///./loreweaver.db"
+# SQLite — path can be overridden via DATABASE_URL env var (useful inside Docker)
+_db_url = os.environ.get("DATABASE_URL", "sqlite:///./loreweaver.db")
+SQLALCHEMY_DATABASE_URL = _db_url
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 init_db(engine)
-log.info("✅  SQLite database initialized → loreweaver.db")
+log.info(f"✅  SQLite database initialized → {_db_url}")
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -109,9 +110,10 @@ def get_db():
     finally:
         db.close()
 
-# Vector DB
-vector_db = VectorDBClient()
-log.info("✅  ChromaDB vector store initialized")
+# Vector DB — persist dir can be overridden via CHROMA_DIR env var (useful inside Docker)
+_chroma_dir = os.environ.get("CHROMA_DIR", "./chroma_db")
+vector_db = VectorDBClient(persist_directory=_chroma_dir)
+log.info(f"✅  ChromaDB vector store initialized → {_chroma_dir}")
 
 # LLM clients are now instantiated per-request based on user selection
 log.info("✅  LLM client classes ready (LocalLLM, Groq, Gemini)")

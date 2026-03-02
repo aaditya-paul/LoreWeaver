@@ -1,6 +1,8 @@
 # LoreWeaver 📖
 
-A research-grade storytelling engine designed to generate long-form narratives (20k+ words) with strong consistency, coherent character development, and maintained world rules.
+A research-grade AI storytelling engine that generates long-form narratives (20k+ words) with strong consistency, coherent character development, and maintained world rules — served via a Flutter web UI backed by a FastAPI server.
+
+> **TL;DR — just want to run it?** See [Quick Start (Docker)](#quick-start-docker) below.
 
 ## Overview
 
@@ -64,24 +66,100 @@ Scene Generation Pipeline:
 - Groq API: Llama-3-70B for fast inference
 - Google Gemini 1.5 Pro: Long-context synthesis
 
-**Frontend** (Planned)
+**Frontend** 
 
-- Flutter for cross-platform UI
+- Flutter (web, mobile, desktop)
+- Served via nginx in Docker
 
-## Installation
+## Quick Start (Docker)
+
+The entire stack — FastAPI backend, ChromaDB, SQLite, and Flutter web frontend — runs with a single command via Docker Compose.
 
 ### Prerequisites
 
-- Python 3.9 or higher
-- (Optional) Local LLM setup (Ollama or llama.cpp)
-- API keys for Groq and/or Google Gemini
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (includes Docker Compose)
+- A **Groq API key** (required — get one free at [console.groq.com](https://console.groq.com))
+- Optionally a **Google API key** for Gemini synthesis
 
-### Setup
+### 1 — Set up your environment file
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+Open `backend/.env` and fill in your keys:
+
+```env
+GROQ_API_KEY=gsk_your_groq_key_here
+GOOGLE_API_KEY=AIza_your_google_key_here   # optional
+JWT_SECRET=replace_with_random_string       # used to sign auth tokens
+LOCAL_LLM_ENABLED=false
+```
+
+Generate a secure `JWT_SECRET` with:
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+### 2 — Build and start
+
+```bash
+docker compose up -d --build
+```
+
+That's it. The first build downloads Flutter and compiles the web app — it takes a few minutes. Subsequent starts (without `--build`) are instant.
+
+| Service  | URL                          |
+|----------|------------------------------|
+| Frontend | http://localhost:8080        |
+| Backend API / Swagger | http://localhost:8000/docs |
+
+### Stopping
+
+```bash
+docker compose down        # stop containers, keep data
+docker compose down -v     # stop and wipe all persistent data (DB, ChromaDB)
+```
+
+### Live logs
+
+```bash
+docker compose logs -f backend    # backend logs
+docker compose logs -f frontend   # nginx access logs
+```
+
+### Using a local LLM (Ollama)
+
+If you run Ollama on your host machine, set `OLLAMA_URL` in `backend/.env`:
+
+```env
+LOCAL_LLM_ENABLED=true
+OLLAMA_URL=http://host.docker.internal:11434   # already set in docker-compose.yml
+```
+
+Or uncomment the `ollama` service block in `docker-compose.yml` to run it inside Docker, then pull a model:
+
+```bash
+docker compose exec ollama ollama pull mistral
+```
+
+---
+
+## Manual Setup (without Docker)
+
+### Prerequisites
+
+- Python 3.9+
+- Flutter SDK (for frontend development)
+- (Optional) Ollama for local LLM
+
+### Backend
 
 1. **Clone the repository**
 
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/aaditya-paul/LoreWeaver.git
    cd LoreWeaver
    ```
 
@@ -92,26 +170,34 @@ Scene Generation Pipeline:
    pip install -r requirements.txt
    ```
 
-3. **Configure environment**
-   Create a `.env` file in the `backend` directory:
+3. **Configure environment** — create `backend/.env`:
 
    ```env
    GROQ_API_KEY=your_groq_key_here
-   GEMINI_API_KEY=your_gemini_key_here
-   LOCAL_LLM_ENABLED=true
+   GOOGLE_API_KEY=your_google_key_here
+   JWT_SECRET=your_random_secret
+   LOCAL_LLM_ENABLED=false
    ```
 
-4. **Initialize databases**
+4. **Run the server**
 
    ```bash
-   python -m db.models  # Creates SQLite schema
-   python -m db.vector_db  # Initializes ChromaDB
+   uvicorn main:app --host 0.0.0.0 --port 8000 --reload
    ```
 
-5. **Run the server**
-   ```bash
-   python main.py
-   ```
+### Frontend
+
+```bash
+cd frontend
+flutter pub get
+flutter run -d chrome          # web dev server
+# or
+flutter build web --release    # production build → build/web/
+```
+
+By default the Flutter app points to `http://127.0.0.1:8000`. This works as-is for local development.
+
+---
 
 ## Usage
 
@@ -166,22 +252,42 @@ print(scene.consistency_report)
 
 ```
 LoreWeaver/
+├── docker-compose.yml          # Single-command orchestration (start here)
+├── ARCHITECTURE_DESIGN.md      # Detailed technical documentation
+│
 ├── backend/
-│   ├── main.py                 # API server entry point
-│   ├── requirements.txt        # Python dependencies
+│   ├── Dockerfile
+│   ├── .env.example            # Copy to .env and fill in your keys
+│   ├── main.py                 # FastAPI app entry point
+│   ├── requirements.txt
+│   ├── auth/
+│   │   ├── router.py          # /auth/* endpoints (register, login)
+│   │   └── deps.py            # JWT helpers
 │   ├── db/
-│   │   ├── models.py          # SQLAlchemy schemas
+│   │   ├── models.py          # SQLAlchemy schemas (User, Project, Scene…)
 │   │   └── vector_db.py       # ChromaDB interface
 │   ├── llm/
+│   │   ├── base_llm.py        # Abstract LLM interface
 │   │   ├── gemini_client.py   # Google Gemini integration
 │   │   ├── groq_client.py     # Groq API client
-│   │   └── local_llm.py       # Local model interface
+│   │   └── local_llm.py       # Ollama / local model interface
 │   ├── memory/
 │   │   ├── context_builder.py # 3-tier context assembly
 │   │   └── state_updater.py   # Memory synchronization
-│   └── orchestrator/
-│       └── pipeline.py         # Multi-phase generation pipeline
-└── ARCHITECTURE_DESIGN.md      # Detailed technical documentation
+│   ├── orchestrator/
+│   │   └── pipeline.py        # Multi-phase generation pipeline
+│   └── projects/
+│       └── router.py          # /projects/* CRUD endpoints
+│
+└── frontend/
+    ├── Dockerfile              # Flutter web build → nginx
+    ├── nginx.conf
+    └── lib/
+        ├── main.dart           # App entry point + scene generation UI
+        ├── auth_screen.dart    # Login / Register screen
+        ├── projects_screen.dart
+        ├── story_reader.dart   # Scene reader / player
+        └── palette.dart        # Design tokens
 ```
 
 ## Evaluation Metrics
@@ -205,7 +311,9 @@ See [ARCHITECTURE_DESIGN.md](ARCHITECTURE_DESIGN.md)
 
 ## Roadmap
 
-- [ ] Flutter frontend with real-time generation streaming
+- [x] Flutter web frontend with auth, project management, and scene generation
+- [x] Docker Compose single-command deployment
+- [ ] Real-time scene generation streaming (SSE / WebSocket)
 - [ ] Multi-threaded scene generation for side plots
 - [ ] Export to EPUB/PDF with formatting preservation
 - [ ] Fine-tuned local models for genre-specific generation
